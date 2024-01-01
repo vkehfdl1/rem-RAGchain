@@ -11,13 +11,14 @@ import click
 from RAGchain.DB import PickleDB
 from RAGchain.pipeline import BasicIngestPipeline
 from RAGchain.preprocess.loader.rem_loader import RemLoader
-from RAGchain.retrieval import VectorDBRetrieval
+from RAGchain.retrieval import VectorDBRetrieval, HybridRetrieval, BM25Retrieval
 from RAGchain.utils.embed import EmbeddingFactory
 from RAGchain.utils.vectorstore import ChromaSlim
 from dotenv import load_dotenv
 
 PICKLE_DB_PATH = 'DB/pickle.pkl'
 CHROMA_DB_PATH = 'Chroma/'
+BM25_PATH = 'DB/bm25.pkl'
 
 load_dotenv()
 
@@ -31,6 +32,8 @@ def main(db_path, ingest_minutes):
         os.makedirs(os.path.dirname(PICKLE_DB_PATH))
     if not os.path.exists(CHROMA_DB_PATH):
         os.makedirs(CHROMA_DB_PATH)
+    if not os.path.exists(os.path.dirname(BM25_PATH)):
+        os.makedirs(os.path.dirname(BM25_PATH))
 
     db = PickleDB(PICKLE_DB_PATH)
     vectordb = ChromaSlim(
@@ -40,9 +43,10 @@ def main(db_path, ingest_minutes):
     )
 
     loader = RemLoader(db_path, [datetime.now() - timedelta(minutes=ingest_minutes), datetime.now()])
-    retrieval = VectorDBRetrieval(vectordb)
+    retrieval = HybridRetrieval([VectorDBRetrieval(vectordb), BM25Retrieval(BM25_PATH)], [0.7, 0.3],
+                                method='cc')
 
-    pipeline = BasicIngestPipeline(file_loader=loader, db=db, retrieval=retrieval)
+    pipeline = BasicIngestPipeline(file_loader=loader, db=db, retrieval=retrieval, ignore_existed_file=False)
     pipeline.run()
 
 
